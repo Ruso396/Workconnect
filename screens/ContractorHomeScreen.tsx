@@ -1,18 +1,6 @@
 import React from 'react';
-import {
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-  Dimensions,
-} from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
-
-// Screen width calculate panna
-const { width } = Dimensions.get('window');
-const CARD_MARGIN = 10;
-// 3 columns calculation: (Total Width - Padding) / 3
-const CARD_WIDTH = (width - 60) / 3; 
 
 // Icons
 const AddUserIcon = () => (
@@ -134,22 +122,20 @@ const styles = StyleSheet.create({
   },
   gridContainer: {
     flexDirection: 'row',
-    flexWrap: 'wrap', // Ithu thaan row-ku 3 mela pona keela kondu varum
-    paddingHorizontal: 15,
-    justifyContent: 'flex-start',
+    flexWrap: 'wrap',
+    paddingHorizontal: 10,
+    justifyContent: 'space-between',
   },
   card: {
-    backgroundColor: '#FFFFFF',
-    width: CARD_WIDTH,
-    aspectRatio: 1, // Square shape
+    width: '30%',
+    aspectRatio: 1,
     borderRadius: 12,
-    margin: 5,
+    marginBottom: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    // Border for subtle look
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#f0f0f0',
-    // Shadow
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,

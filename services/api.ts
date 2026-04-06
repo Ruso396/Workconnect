@@ -17,7 +17,7 @@ import {
 } from '../types';
 
 /** Must stay in sync with `workconnect-api/config.php` `$WORKCONNECT_API_BASE_URL`. */
-export const API_BASE_URL = 'http://192.168.1.6/workconnect-api/';
+export const API_BASE_URL = 'http://192.168.1.3/workconnect-api/';
 
 const BASE_URL = API_BASE_URL;
 

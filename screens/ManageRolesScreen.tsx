@@ -255,7 +255,7 @@ export default function ManageRolesScreen({
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#F8FAFC' },
+  root: { flex: 1, backgroundColor: '#FFFFFF' },
   container: { padding: 20, paddingBottom: 40 },
   
   header: { marginBottom: 24, marginTop: 10 },
