@@ -17,9 +17,12 @@ $stmt = $conn->prepare(
         j.title,
         j.location,
         j.salary,
-        j.description
+        j.description,
+        c.name AS contractor_name,
+        c.profile_image AS contractor_profile_image
      FROM job_requests jr
      INNER JOIN jobs j ON j.id = jr.job_id
+     INNER JOIN users c ON c.id = j.contractor_id AND c.role = \'contractor\'
      WHERE jr.worker_id = ?
      ORDER BY jr.id DESC'
 );
@@ -37,6 +40,8 @@ while ($row = $result->fetch_assoc()) {
         'location' => $row['location'],
         'salary' => $row['salary'],
         'description' => $row['description'],
+        'contractor_name' => (string) ($row['contractor_name'] ?? ''),
+        'contractor_profile_image' => normalize_profile_image_url($row['contractor_profile_image'] ?? null),
         'created_at' => (string) $row['created_at'],
     ];
 }

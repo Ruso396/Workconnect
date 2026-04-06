@@ -1,18 +1,23 @@
 import {
-  ApiResponse,
-  ContractorNotification,
-  ContractorRole,
-  DeleteAllContractorNotificationsResult,
-  JobRequest,
-  User,
-  UserRole,
-  Worker,
-  WorkerStatus,
-  WorkerTradeRole,
+    ApiResponse,
+    AttendanceByDateResult,
+    ContractorNotification,
+    ContractorRole,
+    DeleteAllContractorNotificationsResult,
+    DeleteAllWorkerNotificationsResult,
+    JobRequest,
+    Project,
+    ProjectListItem,
+    User,
+    UserRole,
+    Worker,
+    WorkerProjectListItem,
+    WorkerStatus,
+    WorkerTradeRole,
 } from '../types';
 
 /** Must stay in sync with `workconnect-api/config.php` `$WORKCONNECT_API_BASE_URL`. */
-export const API_BASE_URL = 'http://192.168.1.23/workconnect-api/';
+export const API_BASE_URL = 'http://192.168.1.6/workconnect-api/';
 
 const BASE_URL = API_BASE_URL;
 
@@ -86,6 +91,34 @@ async function request<T>(
   return json.data;
 }
 
+async function postJson<T>(endpoint: string, body: Record<string, unknown>): Promise<T> {
+  const cleanEndpoint = endpoint.replace(/^\/+/, '');
+  const url = `${BASE_URL}${cleanEndpoint}`;
+
+  console.log('[API] postJson start:', { url, body });
+
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  } catch (error) {
+    console.log('API ERROR:', error);
+    throw error;
+  }
+
+  const json = (await response.json()) as ApiResponse<T>;
+  if (!response.ok || !json.success) {
+    throw new Error(json.message ?? 'Request failed');
+  }
+  if (typeof json.data === 'undefined') {
+    throw new Error('Invalid server response');
+  }
+  return json.data;
+}
+
 export const api = {
   login: (phone: string, password: string, role: UserRole) =>
     request<User>('login.php', 'POST', { phone, password, role }),
@@ -112,7 +145,7 @@ export const api = {
 
   sendJob: (
     contractorId: number,
-    title: string,
+    projectId: number,
     target_role: string,
     location: string,
     salary: string,
@@ -120,11 +153,117 @@ export const api = {
   ) =>
     request<{ job_id: number; assigned_count: number }>('send_job.php', 'POST', {
       contractor_id: contractorId,
-      title,
+      project_id: projectId,
       target_role,
       location,
       salary,
       description,
+    }),
+
+  createProject: (
+    contractorId: number,
+    payload: {
+      name: string;
+      location: string;
+      start_date: string;
+      end_date?: string | null;
+      description?: string | null;
+    },
+  ) =>
+    request<ProjectListItem>('projects_create.php', 'POST', {
+      contractor_id: contractorId,
+      name: payload.name,
+      location: payload.location,
+      start_date: payload.start_date,
+      ...(payload.end_date ? { end_date: payload.end_date } : {}),
+      ...(payload.description ? { description: payload.description } : {}),
+    }),
+
+  getProjects: (contractorId: number, status?: 'active' | 'closed') =>
+    request<ProjectListItem[]>('projects_list.php', 'GET', {
+      contractor_id: contractorId,
+      ...(status ? { status } : {}),
+    }),
+
+  getProject: (contractorId: number, projectId: number) =>
+    request<Project>('projects_get.php', 'GET', {
+      contractor_id: contractorId,
+      project_id: projectId,
+    }),
+
+  updateProject: (
+    contractorId: number,
+    projectId: number,
+    payload: {
+      name: string;
+      location: string;
+      start_date: string;
+      end_date?: string | null;
+      description?: string | null;
+    },
+  ) =>
+    postJson<{ id: number }>('projects_update.php', {
+      contractor_id: contractorId,
+      project_id: projectId,
+      name: payload.name,
+      location: payload.location,
+      start_date: payload.start_date,
+      end_date: payload.end_date ?? null,
+      description: payload.description ?? null,
+    }),
+
+  deleteProject: (contractorId: number, projectId: number) =>
+    request<{ deleted: boolean }>('projects_delete.php', 'POST', {
+      contractor_id: contractorId,
+      project_id: projectId,
+    }),
+
+  closeProject: (contractorId: number, projectId: number) =>
+    request<{ id: number; status: string }>('projects_close.php', 'POST', {
+      contractor_id: contractorId,
+      project_id: projectId,
+    }),
+
+  pauseProject: (contractorId: number, projectId: number) =>
+    request<{ id: number; status: string }>('projects_pause.php', 'POST', {
+      contractor_id: contractorId,
+      project_id: projectId,
+    }),
+
+  resumeProject: (contractorId: number, projectId: number) =>
+    request<{ id: number; status: string }>('projects_resume.php', 'POST', {
+      contractor_id: contractorId,
+      project_id: projectId,
+    }),
+
+  addProjectWorkers: (contractorId: number, projectId: number, workerIds: number[]) =>
+    postJson<{ added_count: number; worker_ids: number[] }>('projects_add_workers.php', {
+      contractor_id: contractorId,
+      project_id: projectId,
+      worker_ids: workerIds,
+    }),
+
+  markAttendance: (
+    contractorId: number,
+    projectId: number,
+    date: string,
+    presentWorkerIds: number[],
+  ) =>
+    postJson<{ updated: number; present_count: number; absent_count: number }>(
+      'attendance_mark.php',
+      {
+        contractor_id: contractorId,
+        project_id: projectId,
+        date,
+        present_worker_ids: presentWorkerIds,
+      },
+    ),
+
+  getAttendanceByDate: (contractorId: number, projectId: number, date: string) =>
+    request<AttendanceByDateResult>('attendance_by_date.php', 'GET', {
+      contractor_id: contractorId,
+      project_id: projectId,
+      date,
     }),
 
   getContractorRoles: (contractorId: number) => request<ContractorRole[]>('get_roles.php', 'GET', { contractor_id: contractorId }),
@@ -153,6 +292,20 @@ export const api = {
     }),
 
   getJobs: (workerId: number) => request<JobRequest[]>('get_jobs.php', 'GET', { worker_id: workerId }),
+
+  deleteAllWorkerNotifications: (workerId: number) =>
+    request<DeleteAllWorkerNotificationsResult>('delete_all_worker_notifications.php', 'POST', {
+      worker_id: workerId,
+    }),
+
+  getWorkerProjects: (workerId: number) =>
+    request<WorkerProjectListItem[]>('worker_projects.php', 'GET', { worker_id: workerId }),
+
+  getWorkerProject: (workerId: number, projectId: number) =>
+    request<WorkerProjectListItem>('worker_project_get.php', 'GET', {
+      worker_id: workerId,
+      project_id: projectId,
+    }),
 
   updateJobRequestStatus: (requestId: number, status: 'accepted' | 'rejected') =>
     request<{ request_id: number; status: string }>('update_job_request.php', 'POST', {

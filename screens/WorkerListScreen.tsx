@@ -10,13 +10,36 @@ import {
   Text,
   TextInput,
   View,
+  Dimensions,
 } from 'react-native';
-
-// Import Svg components
-import Svg, { Path } from 'react-native-svg';
+import Svg, { Path, Circle, Rect, G, Defs, LinearGradient, Stop } from 'react-native-svg';
 
 import { ContractorRole, Worker, WorkerTradeRole } from '../types';
 import { profileImageUri } from '../services/api';
+
+const { width } = Dimensions.get('window');
+
+// --- MODERN PREMIUM ICONS (INLINE SVG) ---
+
+const SearchIcon = () => (
+  <Svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="#94A3B8" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <Circle cx="11" cy="11" r="8" />
+    <Path d="M21 21l-4.35-4.35" />
+  </Svg>
+);
+
+const CallIcon = () => (
+  <Svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+    <Path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+  </Svg>
+);
+
+const LocationSmallIcon = () => (
+  <Svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="#64748B" strokeWidth={2}>
+    <Path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 1118 0z" />
+    <Circle cx="12" cy="10" r="3" />
+  </Svg>
+);
 
 interface WorkerListScreenProps {
   workers: Worker[];
@@ -75,300 +98,320 @@ export default function WorkerListScreen({
     const fallbackLetter = (worker.name ?? '').trim().charAt(0).toUpperCase();
     const avatarUri = profileImageUri(worker.profile_image);
     const status = normalizeWorkerStatus(worker.status);
-    const badgeLabel = status === 'active' ? 'Active' : 'Inactive';
+    const isActive = status === 'active';
 
     return (
       <View key={worker.id} style={styles.card}>
-        <View style={styles.imageWrapper}>
-          {avatarUri ? (
-            <Image key={avatarUri} source={{ uri: avatarUri }} style={styles.avatarImage} />
-          ) : (
-            <View style={styles.avatarFallback}>
-              <Text style={styles.avatarFallbackText}>{fallbackLetter}</Text>
-            </View>
-          )}
-        </View>
-
-        <View style={styles.cardContent}>
-          <Text numberOfLines={1} style={styles.name}>
-            {worker.name}
-          </Text>
-
-          <Text numberOfLines={1} style={styles.subText}>
-            {worker.role}
-          </Text>
-          <Text numberOfLines={1} style={styles.subText}>
-            {worker.location}
-          </Text>
-
-          <View
-            style={[
-              styles.statusBadgeBelow,
-              styles.statusBadge,
-              status === 'active' ? styles.statusBadgeActive : styles.statusBadgeInactive,
-            ]}
-          >
-            <Text style={styles.statusBadgeText}>{badgeLabel}</Text>
+        <View style={styles.cardHeader}>
+          <View style={[styles.avatarContainer, !isActive && styles.inactiveAvatar]}>
+            {avatarUri ? (
+              <Image source={{ uri: avatarUri }} style={styles.avatarImage} />
+            ) : (
+              <View style={styles.avatarFallback}>
+                <Text style={styles.avatarFallbackText}>{fallbackLetter}</Text>
+              </View>
+            )}
+            <View style={[styles.statusDot, { backgroundColor: isActive ? '#10B981' : '#EF4444' }]} />
           </View>
-        </View>
 
-        {/* Updated Attractive Call Button */}
-        <Pressable
-          style={({ pressed }) => [
-            styles.callBtn,
-            pressed && { opacity: 0.8, transform: [{ scale: 0.96 }] },
-          ]}
-          onPress={() => void callWorker(worker.phone)}
-        >
-          <Svg
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="#FFFFFF"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
+          <View style={styles.infoContainer}>
+            <Text numberOfLines={1} style={styles.workerName}>{worker.name}</Text>
+            <Text numberOfLines={1} style={styles.workerRole}>{worker.role}</Text>
+            <View style={styles.locationRow}>
+              <LocationSmallIcon />
+              <Text numberOfLines={1} style={styles.locationText}>{worker.location}</Text>
+            </View>
+          </View>
+
+          <Pressable
+            style={({ pressed }) => [
+              styles.callButton,
+              pressed && { transform: [{ scale: 0.92 }], opacity: 0.9 }
+            ]}
+            onPress={() => void callWorker(worker.phone)}
           >
-            <Path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
-          </Svg>
-          <Text style={styles.callBtnText}>Call</Text>
-        </Pressable>
+            <CallIcon />
+          </Pressable>
+        </View>
       </View>
     );
   };
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.content}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-    >
-      <TextInput
-        style={styles.searchInput}
-        value={query}
-        onChangeText={setQuery}
-        placeholder="Search by name, location or phone"
-        placeholderTextColor="#9CA3AF"
-      />
-
-      <View style={styles.filterRow}>
-        {roleFilters.map((role) => (
-          <Pressable
-            key={role}
-            onPress={() => setFilterRole(role)}
-            style={[styles.filterChip, filterRole === role && styles.filterChipActive]}
-          >
-            <Text style={[styles.filterChipText, filterRole === role && styles.filterChipTextActive]}>
-              {role}
-            </Text>
-          </Pressable>
-        ))}
+    <View style={styles.root}>
+      {/* SEARCH SECTION */}
+      <View style={styles.headerSection}>
+        <View style={styles.searchWrapper}>
+          <SearchIcon />
+          <TextInput
+            style={styles.searchInput}
+            value={query}
+            onChangeText={setQuery}
+            placeholder="Search workers..."
+            placeholderTextColor="#94A3B8"
+          />
+        </View>
       </View>
 
-      {loading ? (
-        <ActivityIndicator size="large" color="#2563EB" />
-      ) : filteredWorkers.length === 0 ? (
-        <View style={styles.emptyState}>
-          <Text style={styles.emptyText}>No workers found.</Text>
-        </View>
-      ) : (
-        <View>
-          {activeWorkers.length > 0 && (
-            <View style={styles.sectionContainer}>
-              <Text style={styles.sectionHeader}>Active Workers</Text>
-              {activeWorkers.map(renderWorkerCard)}
-            </View>
-          )}
+      {/* FILTER TABS */}
+      <View>
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false} 
+          contentContainerStyle={styles.filterContainer}
+        >
+          {roleFilters.map((role) => {
+            const isSelected = filterRole === role;
+            const gradId = `filterGrad_${String(role).replace(/[^a-zA-Z0-9_]/g, '_')}`;
+            return (
+              <Pressable
+                key={role}
+                onPress={() => setFilterRole(role)}
+                style={[styles.filterChip, isSelected && styles.filterChipActive]}
+              >
+                {isSelected ? (
+                  <View style={styles.filterChipGradientBg}>
+                    <Svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none">
+                      <Defs>
+                        <LinearGradient id={gradId} x1="0%" y1="0%" x2="100%" y2="0%">
+                          <Stop offset="0%" stopColor="#7F00FF" />
+                          <Stop offset="100%" stopColor="#E100FF" />
+                        </LinearGradient>
+                      </Defs>
+                      <Rect x="0" y="0" width="100" height="100" fill={`url(#${gradId})`} />
+                    </Svg>
+                  </View>
+                ) : null}
+                <Text style={[styles.filterChipText, isSelected && styles.filterChipTextActive]}>{role}</Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      </View>
 
-          {inactiveWorkers.length > 0 && (
-            <View style={styles.sectionContainer}>
-              <Text style={styles.sectionHeader}>Inactive Workers</Text>
-              {inactiveWorkers.map(renderWorkerCard)}
+      <ScrollView
+        style={styles.mainScroll}
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#6366F1" />}
+      >
+        {loading ? (
+          <View style={styles.loaderContainer}>
+            <ActivityIndicator size="large" color="#6366F1" />
+            <Text style={styles.loaderText}>Fetching Team...</Text>
+          </View>
+        ) : filteredWorkers.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <View style={styles.emptyIconCircle}>
+                <Text style={{fontSize: 32}}>🔍</Text>
             </View>
-          )}
-        </View>
-      )}
-    </ScrollView>
+            <Text style={styles.emptyTitle}>No Workers Found</Text>
+            <Text style={styles.emptyDesc}>Try adjusting your filters or search query.</Text>
+          </View>
+        ) : (
+          <View>
+            {activeWorkers.length > 0 && (
+              <View style={styles.section}>
+                <View style={styles.sectionHeaderRow}>
+                  <Text style={styles.sectionTitle}>Active Now</Text>
+                  <View style={styles.countBadge}><Text style={styles.countText}>{activeWorkers.length}</Text></View>
+                </View>
+                {activeWorkers.map(renderWorkerCard)}
+              </View>
+            )}
+
+            {inactiveWorkers.length > 0 && (
+              <View style={[styles.section, { marginTop: 24 }]}>
+                <View style={styles.sectionHeaderRow}>
+                  <Text style={[styles.sectionTitle, { color: '#64748B' }]}>Off Duty</Text>
+                  <View style={[styles.countBadge, { backgroundColor: '#F1F5F9' }]}><Text style={[styles.countText, { color: '#64748B' }]}>{inactiveWorkers.length}</Text></View>
+                </View>
+                {inactiveWorkers.map(renderWorkerCard)}
+              </View>
+            )}
+          </View>
+        )}
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
+  root: { flex: 1, backgroundColor: '#F8FAFC' },
+  
+  // Header & Search
+  headerSection: {
+    paddingHorizontal: 20,
+    paddingTop: 20, // For notch devices
+    paddingBottom: 16,
     backgroundColor: '#FFFFFF',
   },
-  content: {
-    padding: 16,
-    paddingBottom: 28,
+  searchWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F1F5F9',
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    height: 52,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
   searchInput: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 11,
-    color: '#111827',
-    marginBottom: 10,
+    flex: 1,
+    marginLeft: 10,
+    fontSize: 15,
+    color: '#0F172A',
+    fontWeight: '500',
   },
-  filterRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 14,
+
+  // Filters
+  filterContainer: {
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    gap: 10,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
   },
   filterChip: {
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: '#F8FAFC',
     borderWidth: 1,
-    borderColor: '#D1D5DB',
-    borderRadius: 999,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    backgroundColor: '#FFFFFF',
+    borderColor: 'rgba(127, 0, 255, 0.35)',
+    position: 'relative',
+    overflow: 'hidden',
   },
   filterChipActive: {
-    backgroundColor: '#111827',
-    borderColor: '#111827',
+    borderColor: 'transparent',
+    shadowColor: '#7F00FF',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  filterChipGradientBg: {
+    ...StyleSheet.absoluteFillObject,
   },
   filterChipText: {
-    textTransform: 'capitalize',
-    color: '#4B5563',
+    fontSize: 14,
     fontWeight: '600',
+    color: '#7F00FF',
+    textTransform: 'capitalize',
   },
   filterChipTextActive: {
     color: '#FFFFFF',
   },
-  emptyState: {
-    paddingVertical: 20,
+
+  // Main List
+  mainScroll: { flex: 1 },
+  scrollContent: { padding: 20, paddingBottom: 40 },
+  
+  section: { marginBottom: 10 },
+  sectionHeaderRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1,
-    borderStyle: 'dashed',
-    borderColor: '#D1D5DB',
-    borderRadius: 12,
-    backgroundColor: '#FFFFFF',
+    marginBottom: 16,
+    gap: 8,
   },
-  emptyText: {
-    color: '#6B7280',
-  },
-  sectionContainer: {
-    marginTop: 6,
-    marginBottom: 2,
-    paddingTop: 6,
-    borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
-  },
-  sectionHeader: {
-    fontSize: 16,
+  sectionTitle: {
+    fontSize: 18,
     fontWeight: '800',
-    color: '#111827',
-    marginTop: 10,
-    marginBottom: 10,
+    color: '#1E293B',
+    letterSpacing: -0.5,
   },
+  countBadge: {
+    backgroundColor: '#EEF2FF',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  countText: { fontSize: 12, fontWeight: '700', color: '#6366F1' },
+
+  // Worker Card
   card: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 18,
-    marginBottom: 14,
-    paddingVertical: 12,
-    paddingLeft: 12,
-    paddingRight: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-
-    shadowColor: '#000000',
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 2,
-  },
-  imageWrapper: {
-    width: 92,
-    height: 92,
-    borderRadius: 14,
-    overflow: 'hidden',
-    backgroundColor: '#E5E7EB',
-    marginRight: 12,
-    flexShrink: 0,
-  },
-  avatarImage: {
-    width: '100%',
-    height: '100%',
-    resizeMode: 'cover',
-  },
-  avatarFallback: {
-    width: '100%',
-    height: '100%',
-    backgroundColor: '#DDE3EA',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarFallbackText: {
-    fontSize: 30,
-    fontWeight: '700',
-    color: '#374151',
-  },
-  cardContent: {
-    flex: 1,
-    justifyContent: 'center',
-    paddingRight: 10,
-  },
-  nameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginBottom: 4,
-  },
-  name: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#2B2B2B',
-    marginBottom: 4,
-  },
-  statusBadgeBelow: {
-    alignSelf: 'flex-start',
-    marginTop: 4,
-  },
-  statusBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 999,
-  },
-  statusBadgeActive: {
-    backgroundColor: '#16A34A',
-  },
-  statusBadgeInactive: {
-    backgroundColor: '#DC2626',
-  },
-  statusBadgeText: {
-    color: '#FFFFFF',
-    fontWeight: '800',
-    fontSize: 12,
-  },
-  subText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#6B7280',
-    marginBottom: 2,
-    textTransform: 'capitalize',
-  },
-  // --- Updated Call Button Styles ---
-  callBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#0aa126', // Modern blue
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    gap: 6,
-    elevation: 3,
-    shadowColor: '#0aae28',
-    shadowOpacity: 0.3,
-    shadowRadius: 5,
+    borderRadius: 24,
+    padding: 14,
+    marginBottom: 12,
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 10,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
   },
-  callBtnText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '700',
-    textTransform: 'capitalize',
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
+  avatarContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 20,
+    backgroundColor: '#F1F5F9',
+    position: 'relative',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  inactiveAvatar: { opacity: 0.7, grayscale: 1 } as any,
+  avatarImage: { width: '100%', height: '100%', borderRadius: 18 },
+  avatarFallback: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#E0E7FF',
+    borderRadius: 18,
+  },
+  avatarFallbackText: { fontSize: 24, fontWeight: '800', color: '#6366F1' },
+  statusDot: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+
+  infoContainer: { flex: 1, marginLeft: 16, justifyContent: 'center' },
+  workerName: { fontSize: 17, fontWeight: '700', color: '#0F172A', marginBottom: 2 },
+  workerRole: { fontSize: 13, fontWeight: '600', color: '#6366F1', textTransform: 'uppercase', marginBottom: 4 },
+  locationRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  locationText: { fontSize: 13, color: '#64748B', fontWeight: '500' },
+
+  callButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    backgroundColor: '#10B981',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+
+  // States
+  loaderContainer: { alignItems: 'center', marginTop: 100 },
+  loaderText: { marginTop: 12, color: '#64748B', fontWeight: '600' },
+  emptyContainer: { alignItems: 'center', marginTop: 80, paddingHorizontal: 40 },
+  emptyIconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  emptyTitle: { fontSize: 20, fontWeight: '800', color: '#1E293B' },
+  emptyDesc: { fontSize: 14, color: '#64748B', textAlign: 'center', marginTop: 8, lineHeight: 20 },
 });

@@ -215,3 +215,95 @@ function fetch_user_profile_payload(mysqli $conn, int $userId): ?array
         'location' => $row['location'] ?? null,
     ];
 }
+
+/**
+ * Compute total "running days" for a project: counts ONLY days spent in 'active' status.
+ * Pending days are excluded. Closed days stop counting.
+ *
+ * Semantics: if a project becomes pending on 2026-04-07, then 2026-04-07 is NOT counted as active.
+ * If a project is active today, today IS counted as 1 day of active time.
+ */
+function compute_project_active_days(mysqli $conn, int $projectId, string $projectStartDate, string $currentStatus): int
+{
+    // If history doesn't exist (older DB), fall back to a simple rule.
+    // Only count days if currently active.
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $projectStartDate)) {
+        return 0;
+    }
+
+    $history = [];
+    try {
+        $stmt = $conn->prepare(
+            'SELECT status, changed_at
+             FROM project_status_history
+             WHERE project_id = ?
+             ORDER BY changed_at ASC'
+        );
+        $stmt->bind_param('i', $projectId);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        while ($row = $res->fetch_assoc()) {
+            $history[] = [
+                'status' => (string) $row['status'],
+                'changed_at' => (string) $row['changed_at'],
+            ];
+        }
+        $stmt->close();
+    } catch (Throwable $e) {
+        // Table may not exist yet; ignore.
+        $history = [];
+    }
+
+    $start = new DateTimeImmutable($projectStartDate . ' 00:00:00');
+    $todayPlusOne = (new DateTimeImmutable('today'))->modify('+1 day');
+
+    if ($history === []) {
+        if ($currentStatus !== 'active') {
+            return 0;
+        }
+        return max(0, (int) $start->diff($todayPlusOne)->days);
+    }
+
+    // Ensure we have an entry starting at project start date.
+    $firstDate = null;
+    try {
+        $firstDate = new DateTimeImmutable(substr($history[0]['changed_at'], 0, 10) . ' 00:00:00');
+    } catch (Throwable $e) {
+        $firstDate = null;
+    }
+    if ($firstDate !== null && $firstDate > $start) {
+        array_unshift($history, [
+            'status' => 'active',
+            'changed_at' => $projectStartDate . ' 00:00:00',
+        ]);
+    }
+
+    $total = 0;
+    $n = count($history);
+    for ($i = 0; $i < $n; $i++) {
+        $status = (string) ($history[$i]['status'] ?? '');
+        $changedAtRaw = (string) ($history[$i]['changed_at'] ?? '');
+        $segmentStartDate = substr($changedAtRaw, 0, 10);
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $segmentStartDate)) {
+            continue;
+        }
+        $segmentStart = new DateTimeImmutable($segmentStartDate . ' 00:00:00');
+
+        $segmentEnd = $todayPlusOne;
+        if ($i + 1 < $n) {
+            $nextDate = substr((string) ($history[$i + 1]['changed_at'] ?? ''), 0, 10);
+            if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $nextDate)) {
+                $segmentEnd = new DateTimeImmutable($nextDate . ' 00:00:00');
+            }
+        }
+
+        if ($segmentEnd <= $segmentStart) {
+            continue;
+        }
+        if ($status === 'active') {
+            $total += (int) $segmentStart->diff($segmentEnd)->days;
+        }
+    }
+
+    return max(0, (int) $total);
+}

@@ -10,7 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import Svg, { Path, Circle } from 'react-native-svg';
+import Svg, { Path, Circle, Rect, Defs, LinearGradient, Stop } from 'react-native-svg';
 
 import { ContractorRole, Worker, WorkerTradeRole } from '../types';
 
@@ -157,6 +157,17 @@ export default function AddWorkerScreen({ roles, onAddWorker }: AddWorkerScreenP
           {success ? <Text style={styles.successText}>{success}</Text> : null}
 
           <Pressable style={[styles.button, loading && styles.buttonDisabled]} onPress={submit} disabled={loading}>
+            <View style={styles.buttonGradientBg}>
+              <Svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none">
+                <Defs>
+                  <LinearGradient id="addWorkerSubmitGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <Stop offset="0%" stopColor="#7F00FF" />
+                    <Stop offset="100%" stopColor="#E100FF" />
+                  </LinearGradient>
+                </Defs>
+                <Rect x="0" y="0" width="100" height="100" fill="url(#addWorkerSubmitGrad)" />
+              </Svg>
+            </View>
             {loading ? (
               <ActivityIndicator color="#FFFFFF" />
             ) : (
@@ -274,15 +285,20 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   button: {
-    backgroundColor: '#111827', // Dark Premium Look
     borderRadius: 18,
     paddingVertical: 16,
     alignItems: 'center',
+    justifyContent: 'center',
     marginTop: 10,
-    shadowColor: '#2563EB',
+    overflow: 'hidden',
+    position: 'relative',
+    shadowColor: '#7F00FF',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 8,
+  },
+  buttonGradientBg: {
+    ...StyleSheet.absoluteFillObject,
   },
   buttonContent: {
     flexDirection: 'row',

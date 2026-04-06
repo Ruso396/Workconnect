@@ -11,6 +11,7 @@ $stmt = $conn->prepare(
     'SELECT
         id,
         worker_name,
+        worker_profile_image,
         action,
         job_title,
         job_location,
@@ -27,9 +28,14 @@ $result = $stmt->get_result();
 $items = [];
 
 while ($row = $result->fetch_assoc()) {
+    $wimg = $row['worker_profile_image'] ?? null;
+    $wimg = ($wimg !== null && trim((string) $wimg) !== '')
+        ? normalize_profile_image_url((string) $wimg)
+        : null;
     $items[] = [
         'id' => (int) $row['id'],
         'worker_name' => (string) $row['worker_name'],
+        'worker_profile_image' => $wimg,
         'action' => (string) $row['action'],
         'job_title' => (string) $row['job_title'],
         'job_location' => $row['job_location'] !== null ? (string) $row['job_location'] : null,

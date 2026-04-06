@@ -1,29 +1,41 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
-  ScrollView,
-  KeyboardAvoidingView,
-  Platform,
 } from 'react-native';
-import Svg, { Path, Circle, Rect } from 'react-native-svg';
+import Svg, { Circle, Path, Rect } from 'react-native-svg';
 
-import { ContractorRole, WorkerTradeRole } from '../types';
+import { api } from '../services/api';
+import { ContractorRole, Project, ProjectListItem, WorkerTradeRole } from '../types';
 
-// --- Premium SVG Icons ---
-const JobIcon = () => (
-  <Svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <Rect x="2" y="7" width="20" height="14" rx="2" ry="2" /><Path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+const FolderIcon = ({ color = '#6B7280' }) => (
+  <Svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <Path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" />
   </Svg>
 );
 
-const MapPinIcon = () => (
-  <Svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+const MapPinIcon = ({ size = 20, color = '#6B7280' }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <Path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><Circle cx="12" cy="10" r="3" />
+  </Svg>
+);
+
+const DropdownChevronIcon = () => (
+  <Svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <Path d="M6 9l6 6 6-6" />
+  </Svg>
+);
+
+const RoleChevronIcon = () => (
+  <Svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#374151" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <Path d="M6 9l6 6 6-6" />
   </Svg>
 );
 
@@ -45,16 +57,17 @@ const SendIcon = () => (
   </Svg>
 );
 
-const ChevronDownIcon = () => (
-  <Svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#374151" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-    <Path d="M6 9l6 6 6-6" />
+const IconCheck = ({ color = '#FFF', size = 14 }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+    <Path d="M20 6L9 17l-5-5" />
   </Svg>
 );
 
 interface SendJobScreenProps {
+  contractorId: number;
   roles: ContractorRole[];
   onSendJob: (
-    title: string,
+    projectId: number,
     targetRole: WorkerTradeRole,
     location: string,
     salary: string,
@@ -62,8 +75,15 @@ interface SendJobScreenProps {
   ) => Promise<{ job_id: number; assigned_count: number }>;
 }
 
-export default function SendJobScreen({ roles, onSendJob }: SendJobScreenProps): React.JSX.Element {
-  const [title, setTitle] = useState('');
+export default function SendJobScreen({
+  contractorId,
+  roles,
+  onSendJob,
+}: SendJobScreenProps): React.JSX.Element {
+  const [projects, setProjects] = useState<ProjectListItem[]>([]);
+  const [projectsLoading, setProjectsLoading] = useState(true);
+  const [projectsError, setProjectsError] = useState('');
+  const [projectId, setProjectId] = useState<number | null>(null);
   const [targetRole, setTargetRole] = useState<WorkerTradeRole>('');
   const [location, setLocation] = useState('');
   const [salary, setSalary] = useState('');
@@ -71,16 +91,130 @@ export default function SendJobScreen({ roles, onSendJob }: SendJobScreenProps):
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [showDropdown, setShowDropdown] = useState(false);
+  const [showRoleDropdown, setShowRoleDropdown] = useState(false);
+  const [showProjectDropdown, setShowProjectDropdown] = useState(false);
+  const [projectWorkersLoading, setProjectWorkersLoading] = useState(false);
+  const [activeProjectRoleKeys, setActiveProjectRoleKeys] = useState<string[]>([]);
+  const [projectWorkersError, setProjectWorkersError] = useState('');
 
   useEffect(() => {
-    if (roles.length > 0 && !roles.some((r) => r.role_key === targetRole)) {
-      setTargetRole(roles[0].role_key);
-    }
-  }, [roles, targetRole]);
+    let cancelled = false;
+    (async () => {
+      setProjectsError('');
+      setProjectsLoading(true);
+      try {
+        const list = await api.getProjects(contractorId, 'active');
+        if (!cancelled) {
+          setProjects(list);
+          if (list.length > 0) {
+            const first = list[0];
+            setProjectId(first.id);
+            setLocation(first.location);
+          } else {
+            setProjectId(null);
+            setLocation('');
+          }
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setProjectsError(e instanceof Error ? e.message : 'Failed to load projects');
+        }
+      } finally {
+        if (!cancelled) {
+          setProjectsLoading(false);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [contractorId]);
 
-  const submit = async () => {
-    if (!title.trim() || !targetRole || !location.trim() || !salary.trim() || !description.trim()) {
+  useEffect(() => {
+    let cancelled = false;
+
+    if (projectId == null) {
+      setActiveProjectRoleKeys([]);
+      setTargetRole('');
+      return;
+    }
+
+    (async () => {
+      // Avoid showing stale roles from the previous project while we fetch.
+      setActiveProjectRoleKeys([]);
+      setTargetRole('');
+      setProjectWorkersError('');
+      setProjectWorkersLoading(true);
+      try {
+        const p = (await api.getProject(contractorId, projectId)) as Project;
+        if (cancelled) {
+          return;
+        }
+
+        const roleKeys = Array.from(
+          new Set(
+            p.workers
+              .filter((w) => w.status === 'active')
+              .map((w) => (w.role ?? '').trim())
+              .filter((rk) => rk.length > 0),
+          ),
+        );
+
+        setActiveProjectRoleKeys(roleKeys);
+      } catch (e) {
+        if (!cancelled) {
+          setProjectWorkersError(e instanceof Error ? e.message : 'Failed to load project workers');
+          setActiveProjectRoleKeys([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setProjectWorkersLoading(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [contractorId, projectId]);
+
+  const filteredRoles = useMemo(() => {
+    if (activeProjectRoleKeys.length === 0) {
+      return [];
+    }
+    const set = new Set(activeProjectRoleKeys);
+    return roles.filter((r) => set.has(r.role_key));
+  }, [roles, activeProjectRoleKeys]);
+
+  // Keep the selected role valid for the selected project.
+  useEffect(() => {
+    if (!projectId) {
+      return;
+    }
+    if (filteredRoles.length === 0) {
+      setTargetRole('');
+      return;
+    }
+    if (!filteredRoles.some((r) => r.role_key === targetRole)) {
+      setTargetRole(filteredRoles[0].role_key);
+    }
+  }, [filteredRoles, projectId, targetRole]);
+
+  const selectedProject = projects.find((p) => p.id === projectId);
+
+  const selectProject = (p: ProjectListItem) => {
+    setProjectId(p.id);
+    setLocation(p.location);
+    setShowProjectDropdown(false);
+    setShowRoleDropdown(false);
+  };
+
+  const submitWrapper = async () => {
+    if (!projectId || !selectedProject) {
+      setError('Select an active project.');
+      return;
+    }
+    if (!targetRole || !location.trim() || !salary.trim() || !description.trim()) {
       setError('Please fill all fields.');
       return;
     }
@@ -88,9 +222,10 @@ export default function SendJobScreen({ roles, onSendJob }: SendJobScreenProps):
     setSuccess('');
     setLoading(true);
     try {
-      const result = await onSendJob(title.trim(), targetRole, location.trim(), salary.trim(), description.trim());
+      const result = await onSendJob(projectId, targetRole, location.trim(), salary.trim(), description.trim());
       setSuccess(`Success! Sent to ${result.assigned_count} workers.`);
-      setTitle(''); setLocation(''); setSalary(''); setDescription('');
+      setSalary('');
+      setDescription('');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to send job alert');
     } finally {
@@ -103,64 +238,156 @@ export default function SendJobScreen({ roles, onSendJob }: SendJobScreenProps):
       <ScrollView contentContainerStyle={styles.scrollContainer} keyboardShouldPersistTaps="handled">
         <View style={styles.header}>
           <Text style={styles.title}>Post New Job</Text>
-          <Text style={styles.subtitle}>Send instant notifications to eligible workers</Text>
+          <Text style={styles.subtitle}>
+            Notify active workers on this project who match the role you select
+          </Text>
         </View>
 
+        {projectsLoading ? (
+          <View style={styles.loadRow}>
+            <ActivityIndicator color="#111827" />
+            <Text style={styles.loadText}>Loading projects…</Text>
+          </View>
+        ) : projectsError ? (
+          <Text style={styles.bannerError}>{projectsError}</Text>
+        ) : projects.length === 0 ? (
+          <Text style={styles.bannerWarn}>
+            Create an active project and add workers before sending a job.
+          </Text>
+        ) : null}
+
         <View style={styles.card}>
-          {/* Job Title */}
-          <View style={styles.inputBox}>
-            <JobIcon />
-            <TextInput value={title} onChangeText={setTitle} style={styles.input} placeholder="Job Title (e.g. Site Supervisor)" placeholderTextColor="#9CA3AF" />
+          {projectWorkersError ? <Text style={styles.bannerError}>{projectWorkersError}</Text> : null}
+          <View style={styles.dropdownContainer}>
+            <Text style={styles.label}>Project</Text>
+            <Pressable
+              style={[
+                styles.dropdownTrigger,
+                showProjectDropdown && styles.dropdownActive,
+                (!selectedProject || projectsLoading) && { opacity: 0.6 },
+              ]}
+              onPress={() => {
+                if (!projectsLoading && projects.length > 0) {
+                  setShowProjectDropdown((v) => !v);
+                  setShowRoleDropdown(false);
+                }
+              }}
+              disabled={projectsLoading || projects.length === 0}
+            >
+              <View style={styles.iconCircle}>
+                <FolderIcon color="#1E293B" />
+              </View>
+              <View style={styles.dropdownMain}>
+                <Text style={styles.dropdownText} numberOfLines={1}>
+                  {selectedProject?.name ?? 'Select project'}
+                </Text>
+                {selectedProject && (
+                  <View style={styles.locRow}>
+                    <MapPinIcon size={12} color="#94A3B8" />
+                    <Text style={styles.dropdownSubtext}>
+                      {selectedProject.location}
+                    </Text>
+                  </View>
+                )}
+              </View>
+              <View style={[styles.chev, showProjectDropdown && { transform: [{ rotate: '180deg' }] }]}>
+                <DropdownChevronIcon />
+              </View>
+            </Pressable>
+            {showProjectDropdown && projects.length > 0 && (
+              <View style={styles.menuContainer}>
+                <ScrollView
+                  style={styles.menuScroll}
+                  nestedScrollEnabled
+                  showsVerticalScrollIndicator={true}
+                >
+                  {projects.map((p) => (
+                    <Pressable
+                      key={p.id}
+                      style={[
+                        styles.menuItem,
+                        p.id === projectId && styles.menuItemActive,
+                      ]}
+                      onPress={() => selectProject(p)}
+                    >
+                      <Text style={styles.menuTitle}>{p.name}</Text>
+
+                      {p.id === projectId && (
+                        <IconCheck color="#0F172A" size={16} />
+                      )}
+                    </Pressable>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
           </View>
 
-          {/* Custom Dropdown for Role */}
-          <View style={styles.dropdownContainer}>
+          <View style={styles.dropdownContainerRole}>
             <Text style={styles.label}>Target Role</Text>
-            <Pressable style={styles.dropdownTrigger} onPress={() => setShowDropdown(!showDropdown)}>
-              <Text style={styles.dropdownValue}>
-                {roles.find((r) => r.role_key === targetRole)?.role_name || 'Select Worker Role'}
+            <Pressable
+              style={styles.roleDropdownTrigger}
+              onPress={() => {
+                setShowRoleDropdown(!showRoleDropdown);
+                setShowProjectDropdown(false);
+              }}
+            >
+              <Text style={styles.roleDropdownValue}>
+                {filteredRoles.find((r) => r.role_key === targetRole)?.role_name || 'Select Worker Role'}
               </Text>
-              <ChevronDownIcon />
+              <RoleChevronIcon />
             </Pressable>
-            {showDropdown && (
-              <View style={styles.dropdownMenu}>
-                {roles.map((r) => (
-                  <Pressable 
-                    key={r.id} 
-                    style={styles.dropdownOption} 
-                    onPress={() => { setTargetRole(r.role_key); setShowDropdown(false); }}
+            {showRoleDropdown ? (
+              <View style={styles.roleDropdownMenu}>
+                {filteredRoles.map((r) => (
+                  <Pressable
+                    key={r.id}
+                    style={styles.roleDropdownOption}
+                    onPress={() => {
+                      setTargetRole(r.role_key);
+                      setShowRoleDropdown(false);
+                    }}
                   >
-                    <Text style={[styles.optionText, targetRole === r.role_key && styles.activeOptionText]}>
+                    <Text style={[styles.roleOptionText, targetRole === r.role_key && styles.roleActiveOptionText]}>
                       {r.role_name}
                     </Text>
                   </Pressable>
                 ))}
               </View>
-            )}
+            ) : null}
           </View>
 
-          {/* Location */}
           <View style={styles.inputBox}>
             <MapPinIcon />
-            <TextInput value={location} onChangeText={setLocation} style={styles.input} placeholder="Work Location" placeholderTextColor="#9CA3AF" />
+            <TextInput
+              value={location}
+              onChangeText={setLocation}
+              style={styles.input}
+              placeholder="Work location (from project)"
+              placeholderTextColor="#9CA3AF"
+            />
           </View>
 
-          {/* Salary */}
           <View style={styles.inputBox}>
             <CashIcon />
-            <TextInput value={salary} onChangeText={setSalary} style={styles.input} placeholder="Salary / Daily Wage" placeholderTextColor="#9CA3AF" keyboardType="numeric" />
+            <TextInput
+              value={salary}
+              onChangeText={setSalary}
+              style={styles.input}
+              placeholder="Salary / Daily Wage"
+              placeholderTextColor="#9CA3AF"
+              keyboardType="numeric"
+            />
           </View>
 
-          {/* Description */}
           <View style={[styles.inputBox, styles.textAreaBox]}>
             <View style={{ marginTop: 12 }}><EditIcon /></View>
-            <TextInput 
-              value={description} 
-              onChangeText={setDescription} 
-              style={[styles.input, styles.textArea]} 
-              placeholder="Job Description & Requirements" 
-              placeholderTextColor="#9CA3AF" 
-              multiline 
+            <TextInput
+              value={description}
+              onChangeText={setDescription}
+              style={[styles.input, styles.textArea]}
+              placeholder="Job Description & Requirements"
+              placeholderTextColor="#9CA3AF"
+              multiline
               numberOfLines={4}
             />
           </View>
@@ -168,7 +395,11 @@ export default function SendJobScreen({ roles, onSendJob }: SendJobScreenProps):
           {error ? <Text style={styles.errorMsg}>{error}</Text> : null}
           {success ? <Text style={styles.successMsg}>{success}</Text> : null}
 
-          <Pressable style={[styles.mainButton, loading && { opacity: 0.8 }]} onPress={submit} disabled={loading}>
+          <Pressable
+            style={[styles.mainButton, (loading || projects.length === 0 || projectWorkersLoading) && { opacity: 0.8 }]}
+            onPress={submitWrapper}
+            disabled={loading || projects.length === 0 || !projectId || projectWorkersLoading}
+          >
             {loading ? (
               <ActivityIndicator color="#FFFFFF" />
             ) : (
@@ -203,6 +434,15 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     marginTop: 2,
   },
+  loadRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 12,
+  },
+  loadText: { color: '#6B7280', fontWeight: '600' },
+  bannerError: { color: '#DC2626', fontWeight: '600', marginBottom: 12 },
+  bannerWarn: { color: '#B45309', fontWeight: '600', marginBottom: 12, lineHeight: 20 },
   card: {
     backgroundColor: '#FFFFFF',
     borderRadius: 24,
@@ -246,11 +486,90 @@ const styles = StyleSheet.create({
     marginBottom: 6,
     marginLeft: 4,
   },
+  /** Keep project menu above role menu visually */
   dropdownContainer: {
+    marginBottom: 16,
+    zIndex: 3000,
+  },
+  dropdownContainerRole: {
     marginBottom: 16,
     zIndex: 2000,
   },
   dropdownTrigger: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 18,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  dropdownActive: {
+    borderColor: '#0F172A',
+    backgroundColor: '#FFFFFF',
+  },
+  iconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+    elevation: 1,
+  },
+  dropdownMain: {
+    flex: 1,
+  },
+  dropdownText: {
+    color: '#0F172A',
+    fontWeight: '700',
+    fontSize: 16,
+  },
+  locRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 2,
+  },
+  dropdownSubtext: {
+    color: '#64748B',
+    fontSize: 12,
+    marginLeft: 4,
+  },
+  chev: {
+    width: 24,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  menuContainer: {
+    marginTop: 10,
+    backgroundColor: '#FFF',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    overflow: 'hidden',
+  },
+  menuScroll: {
+    maxHeight: 200,
+  },
+  menuItem: {
+    padding: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  menuItemActive: {
+    backgroundColor: '#F8FAFC',
+  },
+  menuTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  roleDropdownTrigger: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -261,13 +580,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E5E7EB',
   },
-  dropdownValue: {
+  roleDropdownValue: {
     fontSize: 15,
     color: '#111827',
     fontWeight: '600',
     textTransform: 'capitalize',
+    flex: 1,
   },
-  dropdownMenu: {
+  roleDropdownMenu: {
     backgroundColor: '#FFFFFF',
     borderRadius: 14,
     marginTop: 6,
@@ -276,23 +596,23 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     elevation: 4,
   },
-  dropdownOption: {
+  roleDropdownOption: {
     paddingVertical: 14,
     paddingHorizontal: 20,
     borderBottomWidth: 1,
     borderBottomColor: '#F3F4F6',
   },
-  optionText: {
+  roleOptionText: {
     fontSize: 14,
     color: '#4B5563',
     textTransform: 'capitalize',
   },
-  activeOptionText: {
+  roleActiveOptionText: {
     color: '#000000',
     fontWeight: '700',
   },
   mainButton: {
-    backgroundColor: '#4ea017', // Blue Premium
+    backgroundColor: '#4ea017',
     borderRadius: 16,
     paddingVertical: 16,
     alignItems: 'center',

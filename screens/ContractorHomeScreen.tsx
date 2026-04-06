@@ -6,7 +6,7 @@ import {
   View,
   Dimensions,
 } from 'react-native';
-import Svg, { Path, Circle } from 'react-native-svg';
+import Svg, { Path, Circle, Rect } from 'react-native-svg';
 
 // Screen width calculate panna
 const { width } = Dimensions.get('window');
@@ -44,16 +44,34 @@ const SettingsIcon = () => (
   </Svg>
 );
 
+const FolderIcon = () => (
+  <Svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <Path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" />
+  </Svg>
+);
+
+const CalendarIcon = () => (
+  <Svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <Path d="M8 2v4M16 2v4M3 10h18" />
+    <Rect x="3" y="4" width="18" height="18" rx="2" />
+    <Path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01M16 18h.01" />
+  </Svg>
+);
+
 interface ContractorHomeScreenProps {
   onGoAddWorker: () => void;
   onGoSendJob: () => void;
   onGoManageRoles: () => void;
+  onGoProjects: () => void;
+  onGoAttendance: () => void;
 }
 
 export default function ContractorHomeScreen({
   onGoAddWorker,
   onGoSendJob,
   onGoManageRoles,
+  onGoProjects,
+  onGoAttendance,
 }: ContractorHomeScreenProps): React.JSX.Element {
   
   return (
@@ -80,10 +98,20 @@ export default function ContractorHomeScreen({
           <Text style={styles.cardLabel}>History</Text>
         </Pressable>
 
-        {/* Row 2, Item 1 (Auto moves to next line because of flexWrap) */}
+        {/* Row 2 */}
+        <Pressable style={styles.card} onPress={onGoProjects}>
+          <FolderIcon />
+          <Text style={styles.cardLabel}>Projects</Text>
+        </Pressable>
+
         <Pressable style={styles.card} onPress={onGoManageRoles}>
           <SettingsIcon />
           <Text style={styles.cardLabel}>Worker Roles</Text>
+        </Pressable>
+
+        <Pressable style={styles.card} onPress={onGoAttendance}>
+          <CalendarIcon />
+          <Text style={styles.cardLabel}>Attendance</Text>
         </Pressable>
       </View>
     </View>

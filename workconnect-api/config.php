@@ -21,4 +21,4 @@ $DB_NAME = 'workconnect';
  * Used to build consistent profile image URLs regardless of stored host in the database.
  * Leave empty to derive from the current request (Host + script directory).
  */
-$WORKCONNECT_API_BASE_URL = 'http://192.168.1.23/workconnect-api';
+$WORKCONNECT_API_BASE_URL = 'http://192.168.1.6/workconnect-api';

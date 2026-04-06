@@ -17,12 +17,74 @@ export interface User {
 export interface Worker {
   id: number;
   contractor_id: number;
+  /** `users.id` for registered workers; required for project group membership. */
+  user_id?: number | null;
   name: string;
   phone: string;
   role: WorkerTradeRole;
   location: string;
   status: WorkerStatus;
   profile_image?: string | null;
+}
+
+export type ProjectStatus = 'active' | 'pending' | 'closed';
+
+export interface ProjectListItem {
+  id: number;
+  contractor_id: number;
+  name: string;
+  location: string;
+  start_date: string;
+  end_date: string | null;
+  description: string | null;
+  status: ProjectStatus;
+  running_days?: number;
+  created_at: string;
+}
+
+export interface ProjectWorkerMember {
+  user_id: number;
+  name: string;
+  phone: string;
+  role: string;
+  status: WorkerStatus;
+  profile_image?: string | null;
+}
+
+export interface Project extends ProjectListItem {
+  workers: ProjectWorkerMember[];
+}
+
+export interface WorkerProjectListItem {
+  id: number;
+  name: string;
+  location: string;
+  start_date: string;
+  description: string | null;
+  status?: ProjectStatus;
+  running_days?: number;
+}
+
+export type AttendanceStatus = 'present' | 'absent';
+
+export interface AttendancePresentWorker {
+  user_id: number;
+  name: string;
+  role: string;
+  profile_image?: string | null;
+}
+
+export interface AttendanceAbsentWorker {
+  user_id: number;
+  name: string;
+  role: string;
+  profile_image?: string | null;
+}
+
+export interface AttendanceByDateResult {
+  already_marked: boolean;
+  present_workers: AttendancePresentWorker[];
+  absent_workers: AttendanceAbsentWorker[];
 }
 
 export interface ContractorRole {
@@ -34,6 +96,7 @@ export interface ContractorRole {
 export interface ContractorNotification {
   id: number;
   worker_name: string;
+  worker_profile_image?: string | null;
   action: string;
   job_title: string;
   job_location: string | null;
@@ -46,9 +109,13 @@ export interface DeleteAllContractorNotificationsResult {
   deleted_count: number;
 }
 
+/** Same shape as contractor clear-all; job_requests removed for this worker. */
+export type DeleteAllWorkerNotificationsResult = DeleteAllContractorNotificationsResult;
+
 export interface Job {
   id: number;
   contractor_id: number;
+  project_id?: number | null;
   title: string;
   location: string;
   salary: string;
@@ -63,6 +130,8 @@ export interface JobRequest {
   location: string;
   salary: string;
   description: string;
+  contractor_name: string;
+  contractor_profile_image?: string | null;
   /** ISO-like timestamp from `job_requests.created_at` */
   created_at: string;
 }

@@ -2,6 +2,7 @@ import React from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Image,
   Pressable,
   RefreshControl,
   SectionList,
@@ -10,15 +11,18 @@ import {
   View,
 } from 'react-native';
 
+import { api, profileImageUri } from '../services/api';
 import type { JobRequest, JobRequestStatus } from '../types';
 import { groupItemsByNotificationDate } from '../utils/groupNotificationsByDate';
 
 interface WorkerNotificationsScreenProps {
+  workerId: number;
   jobs: JobRequest[];
   loading: boolean;
   refreshing: boolean;
   onRefresh: () => void;
   onJobAction: (requestId: number, action: 'accepted' | 'rejected') => Promise<void>;
+  onAfterClearAll?: () => void;
 }
 
 function formatTimestamp(value: string | undefined): string {
@@ -44,13 +48,16 @@ function statusBadgeStyle(status: JobRequestStatus) {
 }
 
 export default function WorkerNotificationsScreen({
+  workerId,
   jobs,
   loading,
   refreshing,
   onRefresh,
   onJobAction,
+  onAfterClearAll,
 }: WorkerNotificationsScreenProps): React.JSX.Element {
   const [actingId, setActingId] = React.useState<number | null>(null);
+  const [clearing, setClearing] = React.useState(false);
 
   const sections = React.useMemo(
     () => groupItemsByNotificationDate(jobs, (j) => j.created_at),
@@ -68,10 +75,46 @@ export default function WorkerNotificationsScreen({
     }
   };
 
+  const confirmClearAll = () => {
+    Alert.alert(
+      'Clear all notifications?',
+      'This will permanently delete all notifications.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Clear All',
+          style: 'destructive',
+          onPress: () => {
+            void (async () => {
+              setClearing(true);
+              try {
+                await api.deleteAllWorkerNotifications(workerId);
+                onAfterClearAll?.();
+              } catch (e) {
+                Alert.alert('Error', e instanceof Error ? e.message : 'Failed to clear notifications');
+              } finally {
+                setClearing(false);
+              }
+            })();
+          },
+        },
+      ],
+    );
+  };
+
   const listHeader = (
-    <View style={styles.headerBlock}>
-      <Text style={styles.title}>Job notifications</Text>
-      <Text style={styles.subtitle}>New job requests from your contractor appear here.</Text>
+    <View>
+      <View style={styles.headerBlock}>
+        <Text style={styles.title}>Job notifications</Text>
+        <Text style={styles.subtitle}>New job requests from your contractor appear here.</Text>
+      </View>
+      {jobs.length > 0 ? (
+        <View style={styles.toolbar}>
+          <Pressable onPress={confirmClearAll} disabled={clearing} hitSlop={8}>
+            <Text style={[styles.clearAllText, clearing && styles.clearAllDisabled]}>Clear All</Text>
+          </Pressable>
+        </View>
+      ) : null}
     </View>
   );
 
@@ -100,8 +143,27 @@ export default function WorkerNotificationsScreen({
         const pending = job.status === 'pending';
         const busy = actingId === job.request_id;
 
+        const contractorUri = profileImageUri(job.contractor_profile_image ?? undefined);
+        const contractorDisplayName = (job.contractor_name ?? '').trim() || 'Contractor';
+        const contractorInitial = (contractorDisplayName || '?').charAt(0).toUpperCase();
+
         return (
           <View style={styles.card}>
+            <View style={styles.contractorRow}>
+              {contractorUri ? (
+                <Image key={contractorUri} source={{ uri: contractorUri }} style={styles.avatar} />
+              ) : (
+                <View style={styles.avatarFallback}>
+                  <Text style={styles.avatarLetter}>{contractorInitial}</Text>
+                </View>
+              )}
+              <View style={styles.contractorMeta}>
+                <Text style={styles.contractorLabel}>From</Text>
+                <Text style={styles.contractorName} numberOfLines={1}>
+                  {contractorDisplayName}
+                </Text>
+              </View>
+            </View>
             <View style={styles.cardHeader}>
               <Text style={styles.jobTitle} numberOfLines={2}>
                 {job.title}
@@ -183,6 +245,21 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     marginBottom: 8,
   },
+  toolbar: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    paddingVertical: 10,
+    marginBottom: 4,
+  },
+  clearAllText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#DC2626',
+  },
+  clearAllDisabled: {
+    opacity: 0.5,
+  },
   loader: {
     marginTop: 24,
   },
@@ -210,6 +287,53 @@ const styles = StyleSheet.create({
   emptyText: {
     color: '#6B7280',
     fontSize: 15,
+  },
+  contractorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  /** Same as ProjectDetailScreen worker list avatars */
+  avatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    marginRight: 12,
+    backgroundColor: '#E5E7EB',
+  },
+  avatarFallback: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    marginRight: 12,
+    backgroundColor: '#E5E7EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarLetter: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#4B5563',
+  },
+  contractorMeta: {
+    flex: 1,
+    minWidth: 0,
+  },
+  contractorLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#9CA3AF',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 2,
+  },
+  contractorName: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#111827',
   },
   card: {
     backgroundColor: '#FFFFFF',

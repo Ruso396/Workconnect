@@ -2,10 +2,11 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/db.php';
-require_fields(['contractor_id', 'title', 'target_role', 'location', 'salary', 'description']);
+
+require_fields(['contractor_id', 'project_id', 'target_role', 'location', 'salary', 'description']);
 
 $contractorId = (int) input('contractor_id');
-$title = trim((string) input('title'));
+$projectId = (int) input('project_id');
 $targetRoleInput = (string) input('target_role');
 $targetRole = normalize_role_key($targetRoleInput);
 $location = trim((string) input('location'));
@@ -16,10 +17,8 @@ if ($targetRole === '') {
     respond(false, 'Invalid target_role', null, 422);
 }
 
-// Ensure contractor has default roles (for older installs).
 ensure_default_contractor_roles($conn, $contractorId);
 
-// Validate target role belongs to contractor.
 $roleCheck = $conn->prepare(
     'SELECT id FROM contractor_roles WHERE contractor_id = ? AND role_key = ? LIMIT 1'
 );
@@ -32,10 +31,29 @@ if (!$roleRow) {
     respond(false, 'Unknown target_role for this contractor', null, 422);
 }
 
-$insertJob = $conn->prepare(
-    'INSERT INTO jobs (contractor_id, title, target_role, location, salary, description) VALUES (?, ?, ?, ?, ?, ?)'
+$projStmt = $conn->prepare(
+    "SELECT id, name, status FROM projects WHERE id = ? AND contractor_id = ? LIMIT 1"
 );
-$insertJob->bind_param('isssss', $contractorId, $title, $targetRole, $location, $salary, $description);
+$projStmt->bind_param('ii', $projectId, $contractorId);
+$projStmt->execute();
+$projRow = $projStmt->get_result()->fetch_assoc();
+$projStmt->close();
+
+if (!$projRow) {
+    respond(false, 'Project not found', null, 404);
+}
+
+if (($projRow['status'] ?? '') !== 'active') {
+    respond(false, 'Project is closed. Only active projects can receive job alerts.', null, 422);
+}
+
+$jobTitle = (string) $projRow['name'];
+
+$insertJob = $conn->prepare(
+    'INSERT INTO jobs (contractor_id, project_id, title, target_role, location, salary, description)
+     VALUES (?, ?, ?, ?, ?, ?, ?)'
+);
+$insertJob->bind_param('iisssss', $contractorId, $projectId, $jobTitle, $targetRole, $location, $salary, $description);
 
 if (!$insertJob->execute()) {
     respond(false, 'Failed to create job alert', null, 500);
@@ -45,17 +63,15 @@ $jobId = (int) $insertJob->insert_id;
 $insertJob->close();
 
 $workerSelector = $conn->prepare(
-    "SELECT u.id
-     FROM users u
-     INNER JOIN workers w
-       ON w.phone = u.phone AND u.role = 'worker'
-     WHERE w.contractor_id = ?
+    "SELECT pw.worker_id AS id
+     FROM project_workers pw
+     INNER JOIN users u ON u.id = pw.worker_id AND u.role = 'worker'
+     WHERE pw.project_id = ?
+       AND pw.role_key = ?
        AND u.status = 'active'
-       AND w.role = ?
      ORDER BY u.id DESC"
 );
-
-$workerSelector->bind_param('is', $contractorId, $targetRole);
+$workerSelector->bind_param('is', $projectId, $targetRole);
 $workerSelector->execute();
 $workerResult = $workerSelector->get_result();
 

@@ -1,22 +1,55 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, AppState, SafeAreaView, StatusBar, StyleSheet, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import Footer from './components/Footer';
 import GoBackHeader from './components/GoBackHeader';
 import Header from './components/Header';
 import AddWorkerScreen from './screens/AddWorkerScreen';
+import AddProjectWorkersScreen from './screens/AddProjectWorkersScreen';
+import AttendanceMarkScreen from './screens/AttendanceMarkScreen';
+import AttendanceMarkFormScreen from './screens/AttendanceMarkFormScreen';
+import CreateProjectScreen from './screens/CreateProjectScreen';
 import ManageRolesScreen from './screens/ManageRolesScreen';
 import ContractorNotificationsScreen from './screens/ContractorNotificationsScreen';
 import LoginScreen from './screens/LoginScreen';
 import ContractorHomeScreen from './screens/ContractorHomeScreen';
+import ProjectDetailScreen from './screens/ProjectDetailScreen';
+import ProjectListScreen from './screens/ProjectListScreen';
 import SendJobScreen from './screens/SendJobScreen';
 import WorkerHomeScreen from './screens/WorkerHomeScreen';
 import WorkerNotificationsScreen from './screens/WorkerNotificationsScreen';
+import WorkerProjectDetailScreen from './screens/WorkerProjectDetailScreen';
+import WorkerProjectListScreen from './screens/WorkerProjectListScreen';
 import WorkerListScreen from './screens/WorkerListScreen';
 import ProfileScreen from './screens/ProfileScreen';
 import { api, profileImageUri } from './services/api';
-import { ContractorRole, JobRequest, User, UserRole, Worker, WorkerStatus, WorkerTradeRole } from './types';
+import {
+  ContractorRole,
+  JobRequest,
+  Project,
+  ProjectListItem,
+  User,
+  UserRole,
+  Worker,
+  WorkerStatus,
+  WorkerTradeRole,
+} from './types';
+
+function projectToListItem(p: Project): ProjectListItem {
+  return {
+    id: p.id,
+    contractor_id: p.contractor_id,
+    name: p.name,
+    location: p.location,
+    start_date: p.start_date,
+    end_date: p.end_date,
+    description: p.description,
+    status: p.status,
+    created_at: p.created_at,
+  };
+}
 
 type Tab = 'Home' | 'Workers' | 'Profile';
 type ContractorScreen =
@@ -26,7 +59,14 @@ type ContractorScreen =
   | 'sendJob'
   | 'profile'
   | 'manageRoles'
-  | 'notifications';
+  | 'notifications'
+  | 'projectList'
+  | 'createProject'
+  | 'projectDetail'
+  | 'editProject'
+  | 'addProjectWorkers'
+  | 'attendanceMark'
+  | 'attendanceMarkForm';
 
 /** Contractor screens shown as footer/tab roots — all others use GoBackHeader. */
 const CONTRACTOR_FOOTER_SCREENS: ContractorScreen[] = ['dashboard', 'workerList', 'profile'];
@@ -46,8 +86,55 @@ export default function App(): React.JSX.Element {
   const [loadingJobs, setLoadingJobs] = useState(false);
   const [workerRefreshing, setWorkerRefreshing] = useState(false);
   const [jobRefreshing, setJobRefreshing] = useState(false);
-  const [contractorScreen, setContractorScreen] = useState<ContractorScreen>('dashboard');
+  const [contractorStack, setContractorStack] = useState<ContractorScreen[]>(['dashboard']);
+  const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
+  const [editProjectInitial, setEditProjectInitial] = useState<ProjectListItem | null>(null);
   const [workerNotificationOpen, setWorkerNotificationOpen] = useState(false);
+  const [workerProjectListOpen, setWorkerProjectListOpen] = useState(false);
+  const [workerSelectedProjectId, setWorkerSelectedProjectId] = useState<number | null>(null);
+  const [attendanceDate, setAttendanceDate] = useState<string | null>(null);
+  const [attendanceProjectId, setAttendanceProjectId] = useState<number | null>(null);
+  const [attendanceRefreshKey, setAttendanceRefreshKey] = useState(0);
+
+  const contractorTop: ContractorScreen = contractorStack[contractorStack.length - 1] ?? 'dashboard';
+
+  const pushContractor = useCallback((screen: ContractorScreen) => {
+    setContractorStack((s) => [...s, screen]);
+  }, []);
+
+  const replaceContractorRoot = useCallback((screen: ContractorScreen) => {
+    setContractorStack([screen]);
+  }, []);
+
+  const popContractor = useCallback(() => {
+    setContractorStack((s) => {
+      if (s.length <= 1) {
+        return s;
+      }
+      return s.slice(0, -1);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (role !== 'contractor') {
+      return;
+    }
+    if (contractorTop === 'editProject' && editProjectInitial == null) {
+      popContractor();
+    }
+  }, [role, contractorTop, editProjectInitial, popContractor]);
+
+  useEffect(() => {
+    if (role !== 'contractor') {
+      return;
+    }
+    if (contractorTop === 'projectDetail' && selectedProjectId == null) {
+      popContractor();
+    }
+    if (contractorTop === 'addProjectWorkers' && selectedProjectId == null) {
+      popContractor();
+    }
+  }, [role, contractorTop, selectedProjectId, popContractor]);
 
   useEffect(() => {
     const loadUser = async () => {
@@ -58,8 +145,10 @@ export default function App(): React.JSX.Element {
           setUser(parsed);
           setRole(parsed.role);
           setActiveTab('Home');
-          setContractorScreen('dashboard');
+          setContractorStack(['dashboard']);
           setWorkerNotificationOpen(false);
+          setWorkerProjectListOpen(false);
+          setWorkerSelectedProjectId(null);
           if (parsed.role === 'contractor') {
             await fetchWorkers(parsed.id);
             await fetchRoles(parsed.id);
@@ -90,8 +179,10 @@ export default function App(): React.JSX.Element {
     setUser(user);
     setRole(user.role);
     setActiveTab('Home');
-    setContractorScreen('dashboard');
+    setContractorStack(['dashboard']);
     setWorkerNotificationOpen(false);
+    setWorkerProjectListOpen(false);
+    setWorkerSelectedProjectId(null);
     await AsyncStorage.setItem(STORAGE_KEY_USER, JSON.stringify(user));
     if (user.role === 'contractor') {
       await fetchWorkers(user.id);
@@ -227,8 +318,10 @@ export default function App(): React.JSX.Element {
     setUser(null);
     setRole(null);
     setActiveTab('Home');
-    setContractorScreen('dashboard');
+    setContractorStack(['dashboard']);
     setWorkerNotificationOpen(false);
+    setWorkerProjectListOpen(false);
+    setWorkerSelectedProjectId(null);
     setWorkers([]);
     setJobs([]);
     setRoles([]);
@@ -251,7 +344,7 @@ export default function App(): React.JSX.Element {
   };
 
   const onSendJob = async (
-    title: string,
+    projectId: number,
     targetRole: WorkerTradeRole,
     location: string,
     salary: string,
@@ -260,7 +353,7 @@ export default function App(): React.JSX.Element {
     if (!user) {
       throw new Error('You must be logged in');
     }
-    return api.sendJob(user.id, title, targetRole, location, salary, description);
+    return api.sendJob(user.id, projectId, targetRole, location, salary, description);
   };
 
   const onToggleStatus = async () => {
@@ -292,34 +385,47 @@ export default function App(): React.JSX.Element {
     setActiveTab(tab);
     if (role === 'worker') {
       setWorkerNotificationOpen(false);
+      if (tab !== 'Home') {
+        setWorkerProjectListOpen(false);
+        setWorkerSelectedProjectId(null);
+      }
     }
     if (role === 'contractor') {
       if (tab === 'Home') {
-        setContractorScreen('dashboard');
+        replaceContractorRoot('dashboard');
       } else if (tab === 'Workers') {
-        setContractorScreen('workerList');
+        replaceContractorRoot('workerList');
         void fetchWorkers();
       } else if (tab === 'Profile') {
-        setContractorScreen('profile');
+        replaceContractorRoot('profile');
       }
     }
   };
 
   const isContractorInnerPage =
-    role === 'contractor' && !CONTRACTOR_FOOTER_SCREENS.includes(contractorScreen);
+    role === 'contractor' && !CONTRACTOR_FOOTER_SCREENS.includes(contractorTop);
   const isWorkerInnerPage = role === 'worker' && workerNotificationOpen;
-  const showGoBackHeader = isContractorInnerPage || isWorkerInnerPage;
+  const isWorkerProjectInnerPage =
+    role === 'worker' && (workerProjectListOpen || workerSelectedProjectId !== null);
+  const showGoBackHeader = isContractorInnerPage || isWorkerInnerPage || isWorkerProjectInnerPage;
 
   const handleGoBack = useCallback(() => {
     if (role === 'worker') {
+      if (workerSelectedProjectId != null) {
+        setWorkerSelectedProjectId(null);
+        return;
+      }
+      if (workerProjectListOpen) {
+        setWorkerProjectListOpen(false);
+        return;
+      }
       setWorkerNotificationOpen(false);
       return;
     }
     if (role === 'contractor') {
-      setContractorScreen('dashboard');
-      setActiveTab('Home');
+      popContractor();
     }
-  }, [role]);
+  }, [role, popContractor, workerProjectListOpen, workerSelectedProjectId]);
 
   const renderContent = () => {
     if (!user || !role) {
@@ -330,31 +436,57 @@ export default function App(): React.JSX.Element {
       if (workerNotificationOpen) {
         return (
           <WorkerNotificationsScreen
+            workerId={user.id}
             jobs={jobs}
             loading={loadingJobs}
             refreshing={jobRefreshing}
             onRefresh={refreshJobs}
             onJobAction={onJobAction}
+            onAfterClearAll={() => {
+              setJobs([]);
+            }}
           />
         );
       }
       if (activeTab === 'Profile') {
         return <ProfileScreen user={user} onUserChange={setUser} />;
       }
-      return <WorkerHomeScreen status={user.status} onToggleStatus={onToggleStatus} />;
-    }
-
-    if (contractorScreen === 'dashboard') {
+      if (workerSelectedProjectId != null) {
+        return <WorkerProjectDetailScreen workerId={user.id} projectId={workerSelectedProjectId} />;
+      }
+      if (workerProjectListOpen) {
+        return (
+          <WorkerProjectListScreen
+            workerId={user.id}
+            onOpenProject={(projectId) => setWorkerSelectedProjectId(projectId)}
+          />
+        );
+      }
       return (
-        <ContractorHomeScreen
-          onGoAddWorker={() => setContractorScreen('addWorker')}
-          onGoSendJob={() => setContractorScreen('sendJob')}
-          onGoManageRoles={() => setContractorScreen('manageRoles')}
+        <WorkerHomeScreen
+          status={user.status}
+          onToggleStatus={onToggleStatus}
+          onGoProjects={() => {
+            setWorkerProjectListOpen(true);
+            setWorkerSelectedProjectId(null);
+          }}
         />
       );
     }
 
-    if (contractorScreen === 'workerList') {
+    if (contractorTop === 'dashboard') {
+      return (
+        <ContractorHomeScreen
+          onGoAddWorker={() => pushContractor('addWorker')}
+          onGoSendJob={() => pushContractor('sendJob')}
+          onGoManageRoles={() => pushContractor('manageRoles')}
+          onGoProjects={() => pushContractor('projectList')}
+          onGoAttendance={() => pushContractor('attendanceMark')}
+        />
+      );
+    }
+
+    if (contractorTop === 'workerList') {
       return (
         <WorkerListScreen
           workers={workers}
@@ -366,15 +498,17 @@ export default function App(): React.JSX.Element {
       );
     }
 
-    if (contractorScreen === 'sendJob') {
-      return <SendJobScreen roles={roles} onSendJob={onSendJob} />;
+    if (contractorTop === 'sendJob') {
+      return (
+        <SendJobScreen contractorId={user.id} roles={roles} onSendJob={onSendJob} />
+      );
     }
 
-    if (contractorScreen === 'profile') {
+    if (contractorTop === 'profile') {
       return <ProfileScreen user={user} onUserChange={setUser} />;
     }
 
-    if (contractorScreen === 'manageRoles') {
+    if (contractorTop === 'manageRoles') {
       return (
         <ManageRolesScreen
           roles={roles}
@@ -384,7 +518,7 @@ export default function App(): React.JSX.Element {
       );
     }
 
-    if (contractorScreen === 'notifications') {
+    if (contractorTop === 'notifications') {
       return (
         <ContractorNotificationsScreen
           contractorId={user.id}
@@ -398,65 +532,173 @@ export default function App(): React.JSX.Element {
       );
     }
 
+    if (contractorTop === 'projectList') {
+      return (
+        <ProjectListScreen
+          contractorId={user.id}
+          onCreateProject={() => pushContractor('createProject')}
+          onOpenProject={(projectId) => {
+            setSelectedProjectId(projectId);
+            pushContractor('projectDetail');
+          }}
+          onEditProject={(p) => {
+            setEditProjectInitial(p);
+            pushContractor('editProject');
+          }}
+          onAfterListChange={() => {
+            void fetchWorkers(user.id);
+          }}
+        />
+      );
+    }
+
+    if (contractorTop === 'createProject') {
+      return (
+        <CreateProjectScreen
+          contractorId={user.id}
+          mode="create"
+          onSaved={() => popContractor()}
+        />
+      );
+    }
+
+    if (contractorTop === 'editProject') {
+      return (
+        <CreateProjectScreen
+          contractorId={user.id}
+          mode="edit"
+          initialProject={editProjectInitial}
+          onSaved={() => {
+            setEditProjectInitial(null);
+            popContractor();
+          }}
+        />
+      );
+    }
+
+    if (contractorTop === 'projectDetail' && selectedProjectId != null) {
+      return (
+        <ProjectDetailScreen
+          contractorId={user.id}
+          projectId={selectedProjectId}
+          onAddWorkers={() => pushContractor('addProjectWorkers')}
+          onEditNavigate={(p) => {
+            setEditProjectInitial(projectToListItem(p));
+            pushContractor('editProject');
+          }}
+          onProjectClosed={() => {
+            void fetchWorkers(user.id);
+          }}
+        />
+      );
+    }
+
+    if (contractorTop === 'addProjectWorkers' && selectedProjectId != null) {
+      return (
+        <AddProjectWorkersScreen
+          contractorId={user.id}
+          projectId={selectedProjectId}
+          workers={workers}
+          onDone={() => popContractor()}
+        />
+      );
+    }
+
+    if (contractorTop === 'attendanceMark') {
+      return (
+        <AttendanceMarkScreen
+          contractorId={user.id}
+          initialDate={attendanceDate ?? undefined}
+          refreshKey={attendanceRefreshKey}
+          onOpenForm={(pickedDate, pickedProjectId) => {
+            setAttendanceDate(pickedDate);
+            setAttendanceProjectId(pickedProjectId);
+            pushContractor('attendanceMarkForm');
+          }}
+        />
+      );
+    }
+
+    if (contractorTop === 'attendanceMarkForm') {
+      return (
+        <AttendanceMarkFormScreen
+          contractorId={user.id}
+          date={attendanceDate ?? new Date().toISOString().slice(0, 10)}
+          initialProjectId={attendanceProjectId ?? undefined}
+          onDone={(didSave) => {
+            if (didSave) {
+              setAttendanceRefreshKey((v) => v + 1);
+            }
+            popContractor();
+          }}
+        />
+      );
+    }
+
     return <AddWorkerScreen roles={roles} onAddWorker={onAddWorker} />;
   };
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.root}>
-        <StatusBar barStyle="dark-content" />
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#111827" />
-        </View>
-      </SafeAreaView>
+      <SafeAreaProvider>
+        <SafeAreaView style={styles.root}>
+          <StatusBar barStyle="dark-content" />
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#111827" />
+          </View>
+        </SafeAreaView>
+      </SafeAreaProvider>
     );
   }
 
   if (!user || !role) {
     return (
-      <SafeAreaView style={styles.root}>
-        <StatusBar barStyle="dark-content" />
-        <LoginScreen onLogin={handleLogin} />
-      </SafeAreaView>
+      <SafeAreaProvider>
+        <SafeAreaView style={styles.root}>
+          <StatusBar barStyle="dark-content" />
+          <LoginScreen onLogin={handleLogin} />
+        </SafeAreaView>
+      </SafeAreaProvider>
     );
   }
 
   return (
-    <SafeAreaView style={styles.root}>
-      <StatusBar barStyle="dark-content" />
-      {showGoBackHeader ? (
-        <GoBackHeader onPress={handleGoBack} />
-      ) : (
-        <Header
-          name={user.name}
+    <SafeAreaProvider>
+      <SafeAreaView style={styles.root}>
+        <StatusBar barStyle="dark-content" />
+        {showGoBackHeader ? (
+          <GoBackHeader onPress={handleGoBack} />
+        ) : (
+          <Header
+            name={user.name}
+            role={role}
+            profileImage={profileImageUri(user.profile_image ?? undefined)}
+            onLogout={handleLogout}
+            notificationCount={
+              role === 'contractor'
+                ? notificationCount
+                : jobs.filter((j) => j.status === 'pending').length
+            }
+            onNotificationPress={
+              role === 'contractor'
+                ? () => {
+                    pushContractor('notifications');
+                  }
+                : () => {
+                    setWorkerNotificationOpen(true);
+                    void fetchJobs(user.id);
+                  }
+            }
+          />
+        )}
+        <View style={styles.content}>{renderContent()}</View>
+        <Footer
           role={role}
-          profileImage={profileImageUri(user.profile_image ?? undefined)}
-          onLogout={handleLogout}
-          notificationCount={
-            role === 'contractor'
-              ? notificationCount
-              : jobs.filter((j) => j.status === 'pending').length
-          }
-          onNotificationPress={
-            role === 'contractor'
-              ? () => {
-                  setActiveTab('Home');
-                  setContractorScreen('notifications');
-                }
-              : () => {
-                  setWorkerNotificationOpen(true);
-                  void fetchJobs(user.id);
-                }
-          }
+          active={role === 'worker' && workerNotificationOpen ? null : activeTab}
+          onTabPress={onFooterPress}
         />
-      )}
-      <View style={styles.content}>{renderContent()}</View>
-      <Footer
-        role={role}
-        active={role === 'worker' && workerNotificationOpen ? null : activeTab}
-        onTabPress={onFooterPress}
-      />
-    </SafeAreaView>
+      </SafeAreaView>
+    </SafeAreaProvider>
   );
 }
 

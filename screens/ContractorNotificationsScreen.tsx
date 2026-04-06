@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Image,
   Pressable,
   RefreshControl,
   SectionList,
@@ -10,7 +11,7 @@ import {
   View,
 } from 'react-native';
 
-import { api } from '../services/api';
+import { api, profileImageUri } from '../services/api';
 import type { ContractorNotification } from '../types';
 import { groupItemsByNotificationDate } from '../utils/groupNotificationsByDate';
 
@@ -26,6 +27,13 @@ function formatTimestamp(value: string): string {
     return value;
   }
   return d.toLocaleString();
+}
+
+function formatWorkerResponseAction(action: string): string {
+  if (action === 'rejected') {
+    return 'declined';
+  }
+  return action;
 }
 
 export default function ContractorNotificationsScreen({
@@ -136,13 +144,29 @@ export default function ContractorNotificationsScreen({
           <Text style={styles.sectionTitle}>{title}</Text>
         </View>
       )}
-      renderItem={({ item: n }) => (
+      renderItem={({ item: n }) => {
+        const workerUri = profileImageUri(n.worker_profile_image ?? undefined);
+        const workerInitial = (n.worker_name || '?').trim().charAt(0).toUpperCase();
+        const statusLabel = formatWorkerResponseAction(n.action);
+        return (
         <View style={styles.card}>
           <View style={styles.topRow}>
+            {workerUri ? (
+              <Image key={workerUri} source={{ uri: workerUri }} style={styles.avatar} />
+            ) : (
+              <View style={styles.avatarFallback}>
+                <Text style={styles.avatarLetter}>{workerInitial}</Text>
+              </View>
+            )}
             <View style={[styles.unreadDot, n.is_read === 0 && styles.unreadDotActive]} />
-            <Text style={styles.cardTitle} numberOfLines={1}>
-              {n.worker_name} {n.action}
-            </Text>
+            <View style={styles.titleBlock}>
+              <Text style={styles.cardTitle} numberOfLines={1}>
+                {n.worker_name}
+              </Text>
+              <Text style={styles.statusLine} numberOfLines={1}>
+                {statusLabel}
+              </Text>
+            </View>
           </View>
           <Text style={styles.meta} numberOfLines={1}>
             Job: {n.job_title}
@@ -154,7 +178,8 @@ export default function ContractorNotificationsScreen({
           ) : null}
           <Text style={styles.time}>{formatTimestamp(n.created_at)}</Text>
         </View>
-      )}
+        );
+      }}
       ListHeaderComponent={
         items.length > 0 ? (
           <View style={styles.toolbar}>
@@ -241,13 +266,46 @@ const styles = StyleSheet.create({
   },
   topRow: {
     flexDirection: 'row',
-    gap: 10,
     alignItems: 'center',
+  },
+  /** Same as ProjectDetailScreen worker list avatars */
+  avatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    marginRight: 12,
+    backgroundColor: '#E5E7EB',
+  },
+  avatarFallback: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    marginRight: 12,
+    backgroundColor: '#E5E7EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarLetter: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#4B5563',
+  },
+  titleBlock: {
+    flex: 1,
+    minWidth: 0,
+  },
+  statusLine: {
+    marginTop: 2,
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#6B7280',
+    textTransform: 'capitalize',
   },
   unreadDot: {
     width: 10,
     height: 10,
     borderRadius: 5,
+    marginRight: 10,
     backgroundColor: '#9CA3AF',
     opacity: 0.3,
   },

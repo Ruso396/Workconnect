@@ -13,6 +13,7 @@ $stmt = $conn->prepare(
     'SELECT
         w.id,
         w.contractor_id,
+        u.id AS user_id,
         COALESCE(u.name, w.name) AS name,
         w.phone,
         w.role,
@@ -31,9 +32,11 @@ $result = $stmt->get_result();
 $workers = [];
 
 while ($row = $result->fetch_assoc()) {
+    $uid = $row['user_id'];
     $workers[] = [
         'id' => (int) $row['id'],
         'contractor_id' => (int) $row['contractor_id'],
+        'user_id' => $uid !== null ? (int) $uid : null,
         'name' => $row['name'],
         'phone' => $row['phone'],
         'role' => $row['role'],

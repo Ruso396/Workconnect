@@ -11,7 +11,7 @@ import {
   ScrollView,
   Dimensions,
 } from 'react-native';
-import Svg, { Path, Circle, Rect } from 'react-native-svg';
+import Svg, { Path, Circle, Rect, Defs, LinearGradient, Stop } from 'react-native-svg';
 import * as ImagePicker from 'expo-image-picker';
 import type { User } from '../types';
 import { api, profileImageUri } from '../services/api';
@@ -254,7 +254,7 @@ export default function ProfileScreen({ user, onUserChange }: ProfileScreenProps
               style={styles.textInput} 
               value={password} 
               onChangeText={setPassword} 
-              placeholder="Update Password" 
+              placeholder="Enter New Password" 
               secureTextEntry={!showPassword}
             />
           </View>
@@ -269,6 +269,17 @@ export default function ProfileScreen({ user, onUserChange }: ProfileScreenProps
 
         {/* Save Button - High Contrast Black */}
         <TouchableOpacity style={styles.mainButton} onPress={handleSave} activeOpacity={0.9} disabled={loading}>
+          <View style={styles.mainButtonGradientBg}>
+            <Svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none">
+              <Defs>
+                <LinearGradient id="profileSaveBtnGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <Stop offset="0%" stopColor="#7F00FF" />
+                  <Stop offset="100%" stopColor="#E100FF" />
+                </LinearGradient>
+              </Defs>
+              <Rect x="0" y="0" width="100" height="100" fill="url(#profileSaveBtnGrad)" />
+            </Svg>
+          </View>
           {loading ? (
             <ActivityIndicator color="#FFF" />
           ) : (
@@ -396,17 +407,21 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   mainButton: {
-    backgroundColor: '#000',
     height: 60,
     borderRadius: 18,
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: 20,
-    shadowColor: '#000',
+    overflow: 'hidden',
+    position: 'relative',
+    shadowColor: '#7F00FF',
     shadowOffset: { width: 0, height: 5 },
     shadowOpacity: 0.2,
     shadowRadius: 10,
     elevation: 5,
+  },
+  mainButtonGradientBg: {
+    ...StyleSheet.absoluteFillObject,
   },
   passwordEyeToggle: {
     width: 45,

@@ -29,6 +29,7 @@ if ($wasUpdated && ($status === 'accepted' || $status === 'rejected')) {
             j.contractor_id,
             jr.worker_id,
             u.name AS worker_name,
+            u.profile_image AS worker_profile_image,
             j.title AS job_title,
             j.location AS job_location,
             jr.job_id
@@ -44,22 +45,26 @@ if ($wasUpdated && ($status === 'accepted' || $status === 'rejected')) {
     $payloadStmt->close();
 
     if ($row) {
+        $workerImg = normalize_profile_image_url($row['worker_profile_image'] ?? null);
+        $workerImgStr = $workerImg ?? '';
+        $jobLoc = $row['job_location'] !== null ? (string) $row['job_location'] : '';
         $notif = $conn->prepare(
             "INSERT IGNORE INTO contractor_notifications
-             (contractor_id, worker_id, job_id, request_id, action, worker_name, job_title, job_location, is_read)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)"
+             (contractor_id, worker_id, job_id, request_id, action, worker_name, worker_profile_image, job_title, job_location, is_read)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)"
         );
         $action = $status;
         $notif->bind_param(
-            'iiisssss',
+            'iiiisssss',
             $row['contractor_id'],
             $row['worker_id'],
             $row['job_id'],
             $row['request_id'],
             $action,
             $row['worker_name'],
+            $workerImgStr,
             $row['job_title'],
-            $row['job_location']
+            $jobLoc
         );
         $notif->execute();
         $notif->close();
