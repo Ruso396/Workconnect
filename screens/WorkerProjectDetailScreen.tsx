@@ -1,5 +1,6 @@
 import React, { useCallback, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import Svg, { Path, Circle } from 'react-native-svg';
 
 import { api } from '../services/api';
 import { WorkerProjectListItem } from '../types';
@@ -9,6 +10,28 @@ interface WorkerProjectDetailScreenProps {
   workerId: number;
   projectId: number;
 }
+
+// --- Custom SVG Components ---
+const LocationIcon = () => (
+  <Svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6366f1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <Path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+    <Circle cx="12" cy="10" r="3" />
+  </Svg>
+);
+
+const CalendarIcon = () => (
+  <Svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6366f1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <Path d="M19 4H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z" />
+    <Path d="M16 2v4M8 2v4M3 10h18" />
+  </Svg>
+);
+
+const ClockIcon = () => (
+  <Svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6366f1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <Circle cx="12" cy="12" r="10" />
+    <Path d="M12 6v6l4 2" />
+  </Svg>
+);
 
 export default function WorkerProjectDetailScreen({
   workerId,
@@ -38,7 +61,7 @@ export default function WorkerProjectDetailScreen({
   if (loading && !project) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#111827" />
+        <ActivityIndicator size="large" color="#6366f1" />
       </View>
     );
   }
@@ -46,10 +69,12 @@ export default function WorkerProjectDetailScreen({
   if (error && !project) {
     return (
       <View style={styles.centered}>
-        <Text style={styles.error}>{error}</Text>
-        <Pressable style={styles.secondaryBtnFull} onPress={() => void load()}>
-          <Text style={styles.secondaryBtnText}>Retry</Text>
-        </Pressable>
+        <View style={styles.errorCard}>
+          <Text style={styles.error}>{error}</Text>
+          <Pressable style={styles.retryBtn} onPress={() => void load()}>
+            <Text style={styles.retryBtnText}>Try Again</Text>
+          </Pressable>
+        </View>
       </View>
     );
   }
@@ -62,78 +87,146 @@ export default function WorkerProjectDetailScreen({
     );
   }
 
+  const getStatusStyles = (status: string) => {
+    switch (status) {
+      case 'active': return { bg: '#ecfdf5', text: '#059669', label: 'Running' };
+      case 'pending': return { bg: '#fffbeb', text: '#d97706', label: 'Paused' };
+      default: return { bg: '#f3f4f6', text: '#6b7280', label: 'Closed' };
+    }
+  };
+
+  const statusTheme = getStatusStyles(project.status || '');
+
   return (
-    <ScrollView contentContainerStyle={styles.scroll}>
-      <View style={styles.hero}>
-        <Text style={styles.name}>{project.name}</Text>
-        {project.status ? (
-          <Text style={styles.statusLine}>
-            Status:{' '}
-            <Text
-              style={
-                project.status === 'active'
-                  ? styles.statusOn
-                  : project.status === 'pending'
-                    ? styles.statusPending
-                    : styles.statusOff
-              }
-            >
-              {project.status === 'active' ? 'Running' : project.status === 'pending' ? 'Paused' : 'Closed'}
-            </Text>
-          </Text>
-        ) : null}
-        {typeof project.running_days === 'number' ? (
-          <Text style={styles.runningDays}>Running for {project.running_days} days</Text>
-        ) : null}
-        <Text style={styles.metaLabel}>Location</Text>
-        <Text style={styles.meta}>{project.location}</Text>
-        <Text style={styles.metaLabel}>Start</Text>
-        <Text style={styles.meta}>{displayDate(project.start_date)}</Text>
-        {project.description ? (
-          <>
-            <Text style={styles.metaLabel}>Description</Text>
-            <Text style={styles.description}>{project.description}</Text>
-          </>
-        ) : null}
+    <ScrollView style={styles.container} contentContainerStyle={styles.scroll}>
+      {/* Header Section */}
+      <View style={styles.header}>
+        <View style={[styles.statusBadge, { backgroundColor: statusTheme.bg }]}>
+          <View style={[styles.statusDot, { backgroundColor: statusTheme.text }]} />
+          <Text style={[styles.statusText, { color: statusTheme.text }]}>{statusTheme.label}</Text>
+        </View>
+        <Text style={styles.projectName}>{project.name}</Text>
+        {typeof project.running_days === 'number' && (
+          <View style={styles.daysRow}>
+            <ClockIcon />
+            <Text style={styles.runningDaysText}>Active for {project.running_days} days</Text>
+          </View>
+        )}
       </View>
+
+      {/* Details Card */}
+      <View style={styles.infoCard}>
+        <View style={styles.infoRow}>
+          <View style={styles.iconContainer}>
+            <LocationIcon />
+          </View>
+          <View style={styles.infoContent}>
+            <Text style={styles.label}>Location</Text>
+            <Text style={styles.value}>{project.location}</Text>
+          </View>
+        </View>
+
+        <View style={styles.divider} />
+
+        <View style={styles.infoRow}>
+          <View style={styles.iconContainer}>
+            <CalendarIcon />
+          </View>
+          <View style={styles.infoContent}>
+            <Text style={styles.label}>Start Date</Text>
+            <Text style={styles.value}>{displayDate(project.start_date)}</Text>
+          </View>
+        </View>
+      </View>
+
+      {/* Description Section */}
+      {project.description ? (
+        <View style={styles.descSection}>
+          <Text style={styles.sectionTitle}>Project Overview</Text>
+          <View style={styles.descCard}>
+            <Text style={styles.descriptionText}>{project.description}</Text>
+          </View>
+        </View>
+      ) : null}
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  scroll: { padding: 20, paddingBottom: 40, backgroundColor: '#F3F4F6' },
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
-  error: { color: '#B91C1C', fontWeight: '600', textAlign: 'center', marginBottom: 12 },
-  muted: { color: '#6B7280' },
-  hero: {
+  container: { flex: 1, backgroundColor: '#F8FAFC' },
+  scroll: { padding: 20, paddingBottom: 60 },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F8FAFC' },
+  
+  // Header
+  header: { marginBottom: 24, alignItems: 'flex-start' },
+  projectName: { fontSize: 28, fontWeight: '900', color: '#0F172A', marginTop: 12, letterSpacing: -0.5 },
+  daysRow: { flexDirection: 'row', alignItems: 'center', marginTop: 8 },
+  runningDaysText: { marginLeft: 6, fontSize: 14, color: '#64748B', fontWeight: '500' },
+  
+  // Status Badge (dynamic colors applied inline)
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 6,
+  },
+  statusText: {
+    fontSize: 12,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+  },
+
+  // Info Card
+  infoCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 18,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    marginBottom: 16,
+    borderRadius: 24,
+    padding: 20,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  name: { fontSize: 22, fontWeight: '800', color: '#111827' },
-  statusLine: { marginTop: 6, fontSize: 14, color: '#6B7280' },
-  statusOn: { color: '#059669', fontWeight: '800' },
-  statusPending: { color: '#D97706', fontWeight: '800' },
-  statusOff: { color: '#6B7280', fontWeight: '800' },
-  runningDays: { marginTop: 6, fontSize: 13, color: '#6B7280', fontWeight: '700' },
-  metaLabel: { fontSize: 11, fontWeight: '700', color: '#9CA3AF', textTransform: 'uppercase', marginTop: 10 },
-  meta: { fontSize: 15, color: '#111827', marginTop: 4, fontWeight: '600' },
-  description: { fontSize: 14, color: '#4B5563', marginTop: 4, lineHeight: 20 },
-  secondaryBtnFull: {
-    marginTop: 12,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 12,
+    shadowRadius: 15,
+    elevation: 3,
     borderWidth: 1,
-    borderColor: '#D1D5DB',
+    borderColor: '#F1F5F9',
   },
-  secondaryBtnText: { fontWeight: '700', color: '#374151' },
+  infoRow: { flexDirection: 'row', alignItems: 'center', marginVertical: 10 },
+  iconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: '#EEF2FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  infoContent: { flex: 1 },
+  label: { fontSize: 12, color: '#94A3B8', fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1 },
+  value: { fontSize: 16, color: '#1E293B', fontWeight: '600', marginTop: 2 },
+  divider: { height: 1, backgroundColor: '#F1F5F9', marginHorizontal: 0, marginVertical: 4 },
+
+  // Description
+  descSection: { marginTop: 28 },
+  sectionTitle: { fontSize: 18, fontWeight: '800', color: '#1E293B', marginBottom: 12 },
+  descCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+  },
+  descriptionText: { fontSize: 15, color: '#475569', lineHeight: 24, fontWeight: '400' },
+
+  // Error & Muted
+  errorCard: { padding: 20, backgroundColor: '#FEF2F2', borderRadius: 16, alignItems: 'center', width: '100%' },
+  error: { color: '#991B1B', fontWeight: '600', textAlign: 'center', marginBottom: 16 },
+  retryBtn: { backgroundColor: '#FFFFFF', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: '#FECACA' },
+  retryBtnText: { color: '#991B1B', fontWeight: '700' },
+  muted: { color: '#94A3B8', fontWeight: '500' },
 });

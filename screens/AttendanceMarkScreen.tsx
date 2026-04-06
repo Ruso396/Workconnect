@@ -357,7 +357,11 @@ export default function AttendanceMarkScreen({
                   <Pressable
                     key={day.key}
                     style={styles.dayCell}
+                    disabled={!day.inMonth}
                     onPress={() => {
+                      if (!day.inMonth) {
+                        return;
+                      }
                       setDate(day.iso);
                       setMonthDate(new Date(day.date.getFullYear(), day.date.getMonth(), 1));
                     }}

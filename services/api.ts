@@ -1,6 +1,7 @@
 import {
     ApiResponse,
     AttendanceByDateResult,
+    WorkerAttendanceByDateResult,
     ContractorNotification,
     ContractorRole,
     DeleteAllContractorNotificationsResult,
@@ -263,6 +264,12 @@ export const api = {
     request<AttendanceByDateResult>('attendance_by_date.php', 'GET', {
       contractor_id: contractorId,
       project_id: projectId,
+      date,
+    }),
+
+  getWorkerAttendanceByDate: (workerId: number, date: string) =>
+    request<WorkerAttendanceByDateResult>('worker_attendance_by_date.php', 'GET', {
+      worker_id: workerId,
       date,
     }),
 

@@ -87,6 +87,11 @@ export interface AttendanceByDateResult {
   absent_workers: AttendanceAbsentWorker[];
 }
 
+/** Logged-in worker's aggregate status for a calendar day (any project). */
+export interface WorkerAttendanceByDateResult {
+  status: AttendanceStatus | null;
+}
+
 export interface ContractorRole {
   id: number;
   role_key: string;

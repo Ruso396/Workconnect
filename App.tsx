@@ -19,6 +19,7 @@ import ProjectDetailScreen from './screens/ProjectDetailScreen';
 import ProjectListScreen from './screens/ProjectListScreen';
 import SendJobScreen from './screens/SendJobScreen';
 import WorkerHomeScreen from './screens/WorkerHomeScreen';
+import WorkerAttendanceScreen from './screens/WorkerAttendanceScreen';
 import WorkerNotificationsScreen from './screens/WorkerNotificationsScreen';
 import WorkerProjectDetailScreen from './screens/WorkerProjectDetailScreen';
 import WorkerProjectListScreen from './screens/WorkerProjectListScreen';
@@ -92,6 +93,7 @@ export default function App(): React.JSX.Element {
   const [workerNotificationOpen, setWorkerNotificationOpen] = useState(false);
   const [workerProjectListOpen, setWorkerProjectListOpen] = useState(false);
   const [workerSelectedProjectId, setWorkerSelectedProjectId] = useState<number | null>(null);
+  const [workerAttendanceOpen, setWorkerAttendanceOpen] = useState(false);
   const [attendanceDate, setAttendanceDate] = useState<string | null>(null);
   const [attendanceProjectId, setAttendanceProjectId] = useState<number | null>(null);
   const [attendanceRefreshKey, setAttendanceRefreshKey] = useState(0);
@@ -385,6 +387,7 @@ export default function App(): React.JSX.Element {
     setActiveTab(tab);
     if (role === 'worker') {
       setWorkerNotificationOpen(false);
+      setWorkerAttendanceOpen(false);
       if (tab !== 'Home') {
         setWorkerProjectListOpen(false);
         setWorkerSelectedProjectId(null);
@@ -407,10 +410,16 @@ export default function App(): React.JSX.Element {
   const isWorkerInnerPage = role === 'worker' && workerNotificationOpen;
   const isWorkerProjectInnerPage =
     role === 'worker' && (workerProjectListOpen || workerSelectedProjectId !== null);
-  const showGoBackHeader = isContractorInnerPage || isWorkerInnerPage || isWorkerProjectInnerPage;
+  const isWorkerAttendancePage = role === 'worker' && workerAttendanceOpen;
+  const showGoBackHeader =
+    isContractorInnerPage || isWorkerInnerPage || isWorkerProjectInnerPage || isWorkerAttendancePage;
 
   const handleGoBack = useCallback(() => {
     if (role === 'worker') {
+      if (workerAttendanceOpen) {
+        setWorkerAttendanceOpen(false);
+        return;
+      }
       if (workerSelectedProjectId != null) {
         setWorkerSelectedProjectId(null);
         return;
@@ -425,7 +434,7 @@ export default function App(): React.JSX.Element {
     if (role === 'contractor') {
       popContractor();
     }
-  }, [role, popContractor, workerProjectListOpen, workerSelectedProjectId]);
+  }, [role, popContractor, workerProjectListOpen, workerSelectedProjectId, workerAttendanceOpen]);
 
   const renderContent = () => {
     if (!user || !role) {
@@ -462,6 +471,9 @@ export default function App(): React.JSX.Element {
           />
         );
       }
+      if (workerAttendanceOpen) {
+        return <WorkerAttendanceScreen workerId={user.id} />;
+      }
       return (
         <WorkerHomeScreen
           status={user.status}
@@ -470,6 +482,7 @@ export default function App(): React.JSX.Element {
             setWorkerProjectListOpen(true);
             setWorkerSelectedProjectId(null);
           }}
+          onGoAttendance={() => setWorkerAttendanceOpen(true)}
         />
       );
     }
